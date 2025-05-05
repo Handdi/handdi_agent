@@ -8,8 +8,7 @@ import plotly.express as px
 # ——— Helper to load logo as base64 ———
 def load_logo_b64(path="logo.png"):
     with open(path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
+        return base64.b64encode(f.read()).decode()
 
 # ——— Airtable loader ———
 AIRTABLE_API_KEY    = os.getenv("AIRTABLE_API_KEY")
@@ -28,8 +27,13 @@ def load_data():
             "Firm":            f.get("Firm",""),
             "Referral Earned": pd.to_numeric(f.get("Referral Earned",0), errors="coerce")
         })
-    df = pd.DataFrame(rows).fillna(0).sort_values("Referral Earned", ascending=False)
-    df.index += 1
+    df = pd.DataFrame(rows).fillna(0)
+    # 1) sort descending
+    df = df.sort_values("Referral Earned", ascending=False)
+    # 2) reset_index dropping the old index
+    df = df.reset_index(drop=True)
+    # 3) assign new 1-based rank
+    df.index = df.index + 1
     df["Rank"] = df.index
     return df
 
@@ -40,7 +44,8 @@ with open("style.css", encoding="utf-8") as f:
 # ——— Centered Logo via base64 HTML ———
 logo_b64 = load_logo_b64("logo.png")
 st.markdown(
-    f"<img src='data:image/png;base64,{logo_b64}' style='display:block;margin-left:auto;margin-right:auto;width:120px;'/>",
+    f"<img src='data:image/png;base64,{logo_b64}' "
+    "style='display:block;margin-left:auto;margin-right:auto;width:120px;'/>",
     unsafe_allow_html=True
 )
 
@@ -71,22 +76,16 @@ for col, rec in zip(cols, top3):
           <div class="card-firm">{rec['Firm']}</div>
           <h3 class="card-metric">💰 ${rec['Referral Earned']:.2f}</h3>
         </div>
-        """, unsafe_allow_html=True
+        """,
+        unsafe_allow_html=True
     )
 
-# ——— Full Table (top 25 only, sequential Rank) ———
+# ——— Full Table (top 25 only, proper Rank 1–25) ———
 st.header("📊 Top 25 Agents")
-
-# take top 25 rows, make a fresh Rank 1→25
-top25 = df.head(25).copy()
-top25["Rank"] = range(1, len(top25) + 1)
-
-# set that new Rank as the index and only show the three columns
-top25 = top25.set_index("Rank")[["Name","Firm","Referral Earned"]]
-
+top25 = df.head(25).set_index("Rank")[["Name","Firm","Referral Earned"]]
 st.table(top25)
 
-# ——— Pie Chart ———
+# ——— Referrer Origins Pie Chart ———
 st.header("Referrer Origins")
 fc = df["Firm"].value_counts().rename_axis("Firm").reset_index(name="Count")
 fig = px.pie(fc, names="Firm", values="Count", hole=0)
