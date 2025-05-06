@@ -85,4 +85,6 @@ st.table(top25)
 st.header("Referrer Origins")
 fc = df["Firm"].value_counts().rename_axis("Firm").reset_index(name="Count")
 fig = px.pie(fc, names="Firm", values="Count", hole=0)
-fig.update_traces(textinfo="none", hovertemplate="%{label}: %{percent}<extra_
+fig.update_traces(textinfo="none", hovertemplate="%{label}: %{percent}<extra></extra>")
+fig.update_layout(showlegend=True, legend_title_text="Firm")
+st.plotly_chart(fig, use_container_width=True)
