@@ -10,12 +10,13 @@ def load_logo_b64(path="logo.png"):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
 
-# ——— Airtable loader ———
+# ——— Airtable creds from env & secrets ———
 AIRTABLE_API_KEY    = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID    = st.secrets["AIRTABLE_BASE_ID"]
 AIRTABLE_TABLE_NAME = st.secrets["AIRTABLE_TABLE_NAME"]
 
-@st.cache_data
+# ——— Load & cache data with 24 h TTL ———
+@st.cache_data(ttl=24*60*60)
 def load_data():
     at = Airtable(AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME, api_key=AIRTABLE_API_KEY)
     recs = at.get_all(view="Grid view")
@@ -28,11 +29,7 @@ def load_data():
             "Referral Earned": pd.to_numeric(f.get("Referral Earned",0), errors="coerce")
         })
     df = pd.DataFrame(rows).fillna(0)
-    # 1) sort descending
-    df = df.sort_values("Referral Earned", ascending=False)
-    # 2) reset_index dropping the old index
-    df = df.reset_index(drop=True)
-    # 3) assign new 1-based rank
+    df = df.sort_values("Referral Earned", ascending=False).reset_index(drop=True)
     df.index = df.index + 1
     df["Rank"] = df.index
     return df
@@ -41,15 +38,13 @@ def load_data():
 with open("style.css", encoding="utf-8") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# ——— Centered Logo via base64 HTML ———
+# ——— Centered logo & title ———
 logo_b64 = load_logo_b64("logo.png")
 st.markdown(
     f"<img src='data:image/png;base64,{logo_b64}' "
-    "style='display:block;margin-left:auto;margin-right:auto;width:120px;'/>",
+    "style='display:block;margin:auto;width:120px;'/>",
     unsafe_allow_html=True
 )
-
-# ——— Title ———
 st.markdown(
     "<div style='text-align:center'>"
     "<h1>Handdi.io</h1>"
@@ -58,6 +53,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# ——— Load Data ———
 df = load_data()
 
 # ——— Top 3 Cards ———
@@ -80,15 +76,13 @@ for col, rec in zip(cols, top3):
         unsafe_allow_html=True
     )
 
-# ——— Full Table (top 25 only, proper Rank 1–25) ———
+# ——— Top 25 Table ———
 st.header("📊 Top 25 Agents")
 top25 = df.head(25).set_index("Rank")[["Name","Firm","Referral Earned"]]
 st.table(top25)
 
-# ——— Referrer Origins Pie Chart ———
+# ——— Pie Chart ———
 st.header("Referrer Origins")
 fc = df["Firm"].value_counts().rename_axis("Firm").reset_index(name="Count")
 fig = px.pie(fc, names="Firm", values="Count", hole=0)
-fig.update_traces(textinfo="none", hovertemplate="%{label}: %{percent}<extra></extra>")
-fig.update_layout(showlegend=True, legend_title_text="Firm")
-st.plotly_chart(fig, use_container_width=True)
+fig.update_traces(textinfo="none", hovertemplate="%{label}: %{percent}<extra_
